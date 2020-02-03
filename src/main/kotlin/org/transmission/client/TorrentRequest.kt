@@ -1,58 +1,12 @@
 package org.transmission.client
 
+import org.transmission.client.Torrent.Companion.ALL_TORRENT_FIELDS
+
 internal open class TorrentRequest(method: String,
-                                   private val fields: List<String> = RPC_FIELDS,
-                                   private val ids: List<Int>? = null,
-                                   private val id: Int? = null,
-                                   tag: Int? = null) : TransmissionRequest(method, tag) {
-
-
-    companion object {
-        val RPC_FIELDS = listOf(
-                "id",
-                "activityDate",
-                "addedDate",
-                "bandwidthPriority",
-                "comment",
-                "corruptEver",
-                "dateCreated",
-                "doneDate",
-                "downloadDir",
-                "downloadedEver",
-                "downloadLimit",
-                "downloadLimited",
-                "error",
-                "errorString",
-                "eta",
-                "etaIdle",
-                "files",
-                "fileStats",
-                "hashString",
-                "haveUnchecked",
-                "haveValid",
-                "isFinished",
-                "isPrivate",
-                "isStalled",
-                "leftUntilDone",
-                "magnetLink",
-                "name",
-                "percentDone",
-                "rateDownload",
-                "rateUpload",
-                "secondsDownloading",
-                "secondsSeeding",
-                "sizeWhenDone",
-                "startDate",
-                "status",
-                "totalSize",
-                "torrentFile",
-                "uploadedEver",
-                "uploadRatio",
-                "files",
-                "fileStats"
-        )
-
-    }
+                                   private val fields: List<String>,
+                                   private val ids: List<Long>?,
+                                   private val id: Long?,
+                                   tag: Int?) : TransmissionRequest(method, tag) {
 
     override fun getArguments() = mutableMapOf<String, Any>("fields" to fields).apply {
         ids?.let {
@@ -67,19 +21,19 @@ internal open class TorrentRequest(method: String,
 
 }
 
-internal class GetTorrentRequest(fields: List<String> = RPC_FIELDS,
-                                 ids: List<Int>? = null,
-                                 id: Int? = null,
+internal class GetTorrentRequest(fields: List<String> = ALL_TORRENT_FIELDS,
+                                 ids: List<Long>? = null,
+                                 id: Long? = null,
                                  tag: Int? = null) : TorrentRequest(Actions.TORRENT_GET, fields, ids, id, tag)
 
-internal class StartTorrentRequest(fields: List<String> = RPC_FIELDS,
-                                   ids: List<Int>? = null,
-                                   id: Int? = null,
+internal class StartTorrentRequest(fields: List<String> = ALL_TORRENT_FIELDS,
+                                   ids: List<Long>? = null,
+                                   id: Long? = null,
                                    tag: Int? = null) : TorrentRequest(Actions.TORRENT_START, fields, ids, id, tag)
 
-internal class StopTorrentRequest(fields: List<String> = RPC_FIELDS,
-                                  ids: List<Int>? = null,
-                                  id: Int? = null,
+internal class StopTorrentRequest(fields: List<String> = ALL_TORRENT_FIELDS,
+                                  ids: List<Long>? = null,
+                                  id: Long? = null,
                                   tag: Int? = null) : TorrentRequest(Actions.TORRENT_STOP, fields, ids, id, tag)
 
 internal class AddTorrentRequest(private val filename: String? = null, private val metainfo: String? = null) : TransmissionRequest(Actions.TORRENT_ADD, null) {
@@ -95,9 +49,9 @@ internal class AddTorrentRequest(private val filename: String? = null, private v
 
 }
 
-internal class RemoveTorrentRequest(private val ids: List<Int>, private val deleteLocalData: Boolean = false) : TransmissionRequest(Actions.TORRENT_REMOVE, null) {
+internal class RemoveTorrentRequest(private val ids: List<Long>, private val deleteLocalData: Boolean = false) : TransmissionRequest(Actions.TORRENT_REMOVE, null) {
     override fun getArguments() = mutableMapOf<String, Any>().apply {
-        put("delete-local-data",deleteLocalData)
+        put("delete-local-data", deleteLocalData)
         if (ids.isNotEmpty()) {
             put("ids", ids)
         }

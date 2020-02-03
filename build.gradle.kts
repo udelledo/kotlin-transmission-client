@@ -10,6 +10,7 @@ compileTestKotlin.kotlinOptions {
 }
 plugins {
     kotlin("jvm") version "1.3.61"
+    jacoco
 }
 repositories {
     mavenCentral()
@@ -22,9 +23,34 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.5.2")
 
 }
+jacoco {
+    toolVersion = "0.8.5"
+}
+tasks.jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = "0.5".toBigDecimal()
+            }
+        }
+
+        rule {
+            enabled = false
+            element = "CLASS"
+            includes = listOf("org.transmission.*")
+
+            limit {
+                counter = "LINE"
+                value = "TOTALCOUNT"
+                maximum = "0.3".toBigDecimal()
+            }
+        }
+    }
+}
 tasks.test {
     useJUnitPlatform()
     testLogging {
         events("passed", "skipped", "failed")
     }
+    finalizedBy("jacocoTestReport")
 }

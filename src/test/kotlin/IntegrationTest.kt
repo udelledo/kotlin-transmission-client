@@ -2,6 +2,8 @@ import org.junit.jupiter.api.MethodOrderer.OrderAnnotation
 import org.junit.jupiter.api.Order
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestMethodOrder
+import org.junit.jupiter.api.assertThrows
+import org.transmission.client.SessionInfo
 import org.transmission.client.Torrent
 import org.transmission.client.TransmissionClient
 import java.lang.System.getenv
@@ -9,7 +11,6 @@ import java.util.concurrent.TimeUnit
 
 @TestMethodOrder(OrderAnnotation::class)
 class IntegrationTest {
-    private val DELAY: Long = 500
 
     private val transmissionHost = getenv("TRANSMISSION_HOST")!!
     private val transmissionUser = getenv("TRANSMISSION_USER")
@@ -41,9 +42,15 @@ class IntegrationTest {
     @Order(3)
     fun `Test client can get torrent list`() {
         val testSubject = initTestSubject()
-        assert(testSubject.getTorrents(ids = listOf(1, 2)).size == 2)
-        assert(testSubject.getTorrent(1).id?.toInt() == 1)
-        assert(testSubject.getTorrents(fields = listOf("id", "activityDate"))[0].name == null)
+        with(testSubject) {
+            val torrents = getTorrents()
+            assert(torrents.isNotEmpty())
+            assert(getTorrents(fields = listOf("id", "activityDate"))[0].name == null)
+            assert(getTorrents(ids = torrents.firstTwo().mapNotNull { it.id }, fields = listOf("all")).size == 2)
+            assert(getTorrent(1).toNonNull().id.toInt() == 1)
+            assert(getTorrent(1, fields = emptyList()).id?.toInt() == 1)
+            assert(getTorrent(1, fields = listOf("id")).activityDate == null)
+        }
     }
 
 
@@ -52,6 +59,7 @@ class IntegrationTest {
     fun `Test client can start and stop torrents`() {
         val testSubject = initTestSubject()
         with(testSubject.getTorrents(listOf("id", "status", "errorString"))) {
+            assertThrows<IllegalArgumentException> { this[0].toNonNull() }
             assert(this[0].name == null)
             groupBy { it.isActive() }.forEach {
                 it.value.let { runningTorrents ->
@@ -67,15 +75,21 @@ class IntegrationTest {
     @Order(5)
     fun `Test client can add and delete torrents`() {
         val testSubject = initTestSubject()
-        testSubject.addTorrent(torrentUri = "http://releases.ubuntu.com/19.10/ubuntu-19.10-desktop-amd64.iso.torrent")
-        testSubject.addTorrent(torrentUri = "magnet:?xt=urn:btih:532b91662ce11bc040f4c467d4e0884376f1778a&dn=bluestar-linux-4.6.4-desktop-2016.07.18-x86_64.iso")
+        val nameToTorrent = mapOf("ubuntu-19.10-desktop-amd64.iso" to "http://releases.ubuntu.com/19.10/ubuntu-19.10-desktop-amd64.iso.torrent",
+                "ubuntu-19.10-live-server-amd64.iso" to "http://releases.ubuntu.com/19.10/ubuntu-19.10-live-server-amd64.iso.torrent",
+                "bluestar-linux-4.6.4-desktop-2016.07.18-x86_64.iso" to "magnet:?xt=urn:btih:532b91662ce11bc040f4c467d4e0884376f1778a&dn=bluestar-linux-4.6.4-desktop-2016.07.18-x86_64.iso")
+        nameToTorrent.forEach { (_, torrent) -> assert(testSubject.addTorrent(torrent)) }
+        val expectedNames = listOf("ubuntu-19.10-desktop-amd64.iso", "bluestar-linux-4.6.4-desktop-2016.07.18-x86_64.iso", "ubuntu-19.10-live-server-amd64.iso")
         val torrents = testSubject.getTorrents()
-        val newTorrents = torrents.filter {
-            it.name == "ubuntu-19.10-desktop-amd64.iso"
-                    || it.name == "bluestar-linux-4.6.4-desktop-2016.07.18-x86_64.iso"
+        val newTorrents = torrents.filter { torrent -> expectedNames.firstOrNull { it == torrent.name } != null }
+
+        assert(newTorrents.size == nameToTorrent.size)
+        newTorrents.mapNotNull { it.id }.forEachIndexed { index, id ->
+            when (index) {
+                1 -> assert(testSubject.removeTorrents(listOf(id)))
+                else -> assert(testSubject.removeTorrents(listOf(id), index.isEven()))
+            }
         }
-        testSubject.removeTorrents(newTorrents.mapNotNull { it.id?.toInt() }, true)
-        assert(newTorrents.size == 2)
 
     }
 
@@ -92,8 +106,29 @@ class IntegrationTest {
     @Order(7)
     fun `Test client can read and change session values`() {
         val testSubject = initTestSubject()
-        val result = testSubject.getSessionInformation()
-        assert(result.altSpeedEnabled != null)
+        val currentSessionInformation = testSubject.getSessionInformation()
+        val newSessionInformation = getUpdatedSessionInformation(currentSessionInformation)
+        assert(currentSessionInformation.altSpeedEnabled != null)
+        testSubject.setSessionInformation(newSessionInformation)
+        waitRequest()
+        assert(testSubject.getSessionInformation().altSpeedEnabled == newSessionInformation.altSpeedEnabled)
+        testSubject.setSessionInformation(currentSessionInformation)
+    }
+
+    @Test
+    fun `Test client parse session`() {
+        val testSubject = initTestSubject()
+        val currentSessionInformation = testSubject.getSessionInformation(emptyList())
+        assertThrows<java.lang.IllegalArgumentException> {
+            currentSessionInformation.toNonNull()
+        }
+    }
+
+    private fun getUpdatedSessionInformation(currentSessionInformation: SessionInfo): SessionInfo {
+        return when {
+            currentSessionInformation.altSpeedEnabled != null -> SessionInfo(altSpeedEnabled = currentSessionInformation.altSpeedEnabled!!.not())
+            else -> SessionInfo(altSpeedEnabled = true)
+        }
     }
 
     private fun initTestSubject() = TransmissionClient(transmissionHost, transmissionUser, transmissionPassword)
@@ -101,48 +136,51 @@ class IntegrationTest {
 
     private fun TransmissionClient.toggleState(torrents: Torrent) {
         if (torrents.isActive()) {
-            torrents.id?.toInt()?.let {
+            torrents.id?.let {
                 stopTorrent(it)
-                TimeUnit.MILLISECONDS.sleep(DELAY)
+                waitRequest()
                 assert(areAllStopped(listOf(it)))
+                startTorrent(it)
+                waitRequest()
+                assert(areAllRunning(listOf(it)))
+            }
+        } else {
+            torrents.id?.let {
                 startTorrent(it)
                 TimeUnit.MILLISECONDS.sleep(DELAY)
                 assert(areAllRunning(listOf(it)))
-            }
-        }
-        else{
-            torrents.id?.toInt()?.let {
-                startTorrent(it)
-                TimeUnit.MILLISECONDS.sleep(DELAY)
-                assert(areAllRunning(listOf(it)))
                 stopTorrent(it)
-                TimeUnit.MILLISECONDS.sleep(DELAY)
+                waitRequest()
                 assert(areAllStopped(listOf(it)))
             }
         }
+    }
+
+    private fun waitRequest() {
+        TimeUnit.MILLISECONDS.sleep(DELAY)
     }
 
 
     private fun TransmissionClient.toggleState(torrents: List<Torrent>) {
         torrents.groupBy { it.isActive() }.forEach { entry ->
-            val torrentIds = entry.value.mapNotNull { it.id?.toInt() }
-            val delay = DELAY * (torrentIds.size / 100 + 1)
+            val torrentIds = entry.value.mapNotNull { it.id }
+            val adequateDelay = DELAY * (torrentIds.size / 100 + 1)
             if (entry.key) {
                 println("Stopping ${torrentIds.size} torrent")
                 stopTorrents(runningIds = torrentIds)
-                TimeUnit.MILLISECONDS.sleep(delay)
+                TimeUnit.MILLISECONDS.sleep(adequateDelay)
                 assert(areAllStopped(torrentIds))
                 startTorrents(torrentIds)
-                TimeUnit.MILLISECONDS.sleep(delay)
+                TimeUnit.MILLISECONDS.sleep(adequateDelay)
                 assert(areAllRunning(torrentIds))
 
             } else {
                 println("Starting ${torrentIds.size} torrent")
                 startTorrents(torrentIds)
-                TimeUnit.MILLISECONDS.sleep(delay)
+                TimeUnit.MILLISECONDS.sleep(adequateDelay)
                 assert(areAllRunning(torrentIds))
                 stopTorrents(runningIds = torrentIds)
-                TimeUnit.MILLISECONDS.sleep(delay)
+                TimeUnit.MILLISECONDS.sleep(adequateDelay)
                 assert(areAllStopped(torrentIds))
 
             }
@@ -151,12 +189,23 @@ class IntegrationTest {
 
     }
 
-    private fun TransmissionClient.areAllStopped(torrentIds: List<Int>) =
+    private fun TransmissionClient.areAllStopped(torrentIds: List<Long>) =
             getTorrents(ids = torrentIds).firstOrNull { it.isActive() } == null
 
-    private fun TransmissionClient.areAllRunning(torrentIds: List<Int>) =
+    private fun TransmissionClient.areAllRunning(torrentIds: List<Long>) =
             getTorrents(ids = torrentIds).firstOrNull { !it.isActive() && !it.isError() } == null
+
+    companion object {
+        private const val DELAY: Long = 500
+    }
 }
+
+private fun <E> List<E>.firstTwo(): List<E> {
+    if (size < 2) throw RuntimeException("Can't get first to with $size values")
+    return listOf(this[0], this[1])
+}
+
+private fun Int.isEven() = this % 2 == 0
 
 
 
