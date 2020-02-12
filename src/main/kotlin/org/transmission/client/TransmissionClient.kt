@@ -170,6 +170,14 @@ class TransmissionClient(private val host: String, private val username: String 
 
     }
 
+    fun startTorrentNow(id: Long): Boolean {
+        return sendPostRequest(StartNowTorrentRequest(id = id)).success
+    }
+
+    fun startTorrentsNow(id: List<Long>): Boolean {
+        return sendPostRequest(StartNowTorrentRequest(ids = id)).success
+    }
+
     companion object {
         const val CSRF_HEADER = "X-Transmission-Session-Id"
         const val RPC_CONTEXT = "/rpc"

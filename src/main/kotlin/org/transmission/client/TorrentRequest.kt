@@ -31,6 +31,11 @@ internal class StartTorrentRequest(fields: List<String> = ALL_TORRENT_FIELDS,
                                    id: Long? = null,
                                    tag: Int? = null) : TorrentRequest(Actions.TORRENT_START, fields, ids, id, tag)
 
+internal class StartNowTorrentRequest(fields: List<String> = ALL_TORRENT_FIELDS,
+                                   ids: List<Long>? = null,
+                                   id: Long? = null,
+                                   tag: Int? = null) : TorrentRequest(Actions.TORRENT_START_NOW, fields, ids, id, tag)
+
 internal class StopTorrentRequest(fields: List<String> = ALL_TORRENT_FIELDS,
                                   ids: List<Long>? = null,
                                   id: Long? = null,

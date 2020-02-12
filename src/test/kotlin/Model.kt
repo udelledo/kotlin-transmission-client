@@ -19,8 +19,8 @@ data class NonNullTorrent(
         val errorString: String,
         val eta: Long,
         val etaIdle: Int,
-        val files: Array<File>,
-        val fileStats: Array<FileStat>,
+        val files: List<File>,
+        val fileStats: List<FileStat>,
         val hashString: String,
         val haveUnchecked: Long,
         val haveValid: Long,
@@ -70,7 +70,7 @@ data class NonNullTorrent(
         val webseeds: List<String>,
         val webseedsSendingToUs: Long,
         val uploadLimited: Boolean,
-        val wanted:List<Long>?=null
+        val wanted: List<Long>? = null
 )
 
 fun Torrent.toNonNull(): NonNullTorrent {

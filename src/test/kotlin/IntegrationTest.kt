@@ -61,9 +61,8 @@ class IntegrationTest {
         with(testSubject.getTorrents(listOf("id", "status", "errorString"))) {
             assertThrows<IllegalArgumentException> { this[0].toNonNull() }
             assert(this[0].name == null)
-            groupBy { it.isActive() }.forEach {
+            take(5).groupBy { it.isActive() }.forEach {
                 it.value.let { runningTorrents ->
-                    testSubject.toggleState(runningTorrents[0])
                     testSubject.toggleState(runningTorrents)
                 }
             }
@@ -121,6 +120,19 @@ class IntegrationTest {
         val currentSessionInformation = testSubject.getSessionInformation(emptyList())
         assertThrows<java.lang.IllegalArgumentException> {
             currentSessionInformation.toNonNull()
+        }
+    }
+
+    @Test
+    fun `Test client can startNow`() {
+        val testSubject = initTestSubject()
+        val torrents = testSubject.getTorrents()
+        val torrent = torrents.first { !it.isActive() }
+        assert(testSubject.startTorrentNow(torrent.id!!))
+        testSubject.stopTorrent(torrent.id!!)
+        torrents.takeIf { !torrent.isActive() }?.take(5)?.map{it.id!!}.let {
+            assert(testSubject.startTorrentsNow(it!!))
+            assert(testSubject.stopTorrents(it!!))
         }
     }
 
