@@ -1,4 +1,4 @@
-package org.transmission.client
+package org.udelledo.transmission.client
 
 internal class SessionRequest(method: String) : TransmissionRequest(method, null) {
     override fun getArguments() = mutableMapOf<String, Any>()

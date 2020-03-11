@@ -1,6 +1,6 @@
-package org.transmission.client
+package org.udelledo.transmission.client
 
-import org.transmission.client.Torrent.Companion.ALL_TORRENT_FIELDS
+import org.udelledo.transmission.client.Torrent.Companion.ALL_TORRENT_FIELDS
 
 internal open class TorrentRequest(method: String,
                                    private val fields: List<String>,

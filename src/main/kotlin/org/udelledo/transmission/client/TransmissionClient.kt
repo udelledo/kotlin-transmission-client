@@ -1,4 +1,4 @@
-package org.transmission.client
+package org.udelledo.transmission.client
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -13,7 +13,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.sql.Timestamp
-import java.util.Base64
+import java.util.*
 
 val mapper = ObjectMapper().registerKotlinModule().apply {
     configure(DeserializationFeature.ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, true)
@@ -48,7 +48,7 @@ class TransmissionClient(private val host: String, private val username: String 
     }
 
     private fun <T : TransmissionRequest> sendPostRequest(request: T): TransmissionResponse {
-        with(URL(targetUrl).openConnection() as HttpURLConnection) {
+        with(getConnection()) {
             requestMethod = "POST"
             doOutput = true
             setHeaders()
@@ -66,6 +66,8 @@ class TransmissionClient(private val host: String, private val username: String 
         }
     }
 
+    fun getConnection() = URL(targetUrl).openConnection() as HttpURLConnection
+
     fun isInit() = csrfToken !== ""
 
     private fun HttpURLConnection.refreshCsrf() {
@@ -73,17 +75,7 @@ class TransmissionClient(private val host: String, private val username: String 
     }
 
     private fun parseResponse(responseStream: InputStream): String {
-        BufferedReader(InputStreamReader(responseStream)).use {
-            val response = StringBuffer()
-
-            var inputLine = it.readLine()
-            while (inputLine != null) {
-                response.append(inputLine)
-                inputLine = it.readLine()
-            }
-            it.close()
-            return response.toString()
-        }
+        return BufferedReader(InputStreamReader(responseStream)).readLines().joinToString("")
     }
 
     private fun HttpURLConnection.setHeaders() {
@@ -102,7 +94,14 @@ class TransmissionClient(private val host: String, private val username: String 
     }
 
     private fun parseTorrents(request: TorrentRequest): List<Torrent> {
-        return mapper.readValue(sendPostRequest(request).arguments["torrents"].toString())
+        val sendPostRequest = sendPostRequest(request)
+        return mapper.readValue(sendPostRequest.arguments["torrents"].toString())
+    }
+
+    private fun parseTorrentAdded(request: AddTorrentRequest): Torrent {
+        val sendPostRequest = sendPostRequest(request)
+        val jsonNode = sendPostRequest.arguments["torrent-added"] ?: sendPostRequest.arguments["torrent-duplicate"]
+        return mapper.readValue(jsonNode.toString())
     }
 
     fun getTorrent(
@@ -136,20 +135,20 @@ class TransmissionClient(private val host: String, private val username: String 
         return sendPostRequest(StopTorrentRequest(ids = runningIds)).result == "success"
     }
 
-    fun startTorrent(id: Long) {
-        sendPostRequest(StartTorrentRequest(id = id))
+    fun startTorrent(id: Long): Boolean {
+        return sendPostRequest(StartTorrentRequest(id = id)).success
     }
 
-    fun stopTorrent(id: Long) {
-        sendPostRequest(StopTorrentRequest(id = id))
+    fun stopTorrent(id: Long): Boolean {
+        return sendPostRequest(StopTorrentRequest(id = id)).success
     }
 
-    fun startTorrents(runningIds: List<Long>) {
-        sendPostRequest(StartTorrentRequest(ids = runningIds))
+    fun startTorrents(runningIds: List<Long>): Boolean {
+        return sendPostRequest(StartTorrentRequest(ids = runningIds)).success
     }
 
-    fun addTorrent(torrentUri: String): Boolean {
-        return sendPostRequest(AddTorrentRequest(filename = torrentUri)).success
+    fun addTorrent(torrentUri: String): Torrent {
+        return parseTorrentAdded(AddTorrentRequest(filename = torrentUri))
     }
 
     fun removeTorrents(ids: List<Long>, deleteLocalData: Boolean = false): Boolean {

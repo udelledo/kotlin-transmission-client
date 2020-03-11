@@ -1,6 +1,7 @@
+package org.udelledo.transmission.client
+
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.convertValue
-import org.transmission.client.*
 import java.math.BigInteger
 import java.sql.Timestamp
 
