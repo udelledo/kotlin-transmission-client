@@ -2,14 +2,15 @@
 
 Transmission Client library implemented to experiment with Kotlin
 
-This is a side project to practice TDD and build something fun meanwhile.
+This is a side project to practice [TDD/BDD](TDD.md) and build something fun meanwhile.
 
 
 ## Technologies
 
-* Gradle as build system
-* Kotlin as programming language
-* Jackson as mapping library
+* [Gradle](https://gradle.org/) as build system
+* [Kotlin](https://kotlinlang.org/) as programming language
+* [Jackson](https://github.com/FasterXML/jackson) as mapping library
+* [Pitest](https://pitest.org/) as mutation testing library
 
 ## Transmission rpc spec
 
